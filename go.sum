@@ -275,6 +275,8 @@ github.com/ashanbrown/forbidigo v1.2.0/go.mod h1:vVW7PEdqEFqapJe95xHkTfB1+XvZXBF
 github.com/ashanbrown/makezero v0.0.0-20210520155254-b6261585ddde/go.mod h1:oG9Dnez7/ESBqc4EdrdNlryeo7d0KcW1ftXHm7nU/UU=
 github.com/averageflow/gohooks/v2 v2.1.0 h1:6QpwoQldPLAXThPQgGC2pIp/VxFkpRyqlNLfp6Kdp7U=
 github.com/averageflow/gohooks/v2 v2.1.0/go.mod h1:lcjhame46DD7+XE+nnUXg1XIZUowq4m/0/TMY2TrF3Q=
+github.com/averageflow/gohooks/v2 v2.2.0 h1:m3F8krmQncyXUp84po7/ipR8xbG7rEE5um5aLllET1E=
+github.com/averageflow/gohooks/v2 v2.2.0/go.mod h1:yX6XiRHGdWKFSUYzRqpsUHe0qRYVw+smQ/GD/HrLe/o=
 github.com/aws/aws-lambda-go v1.13.3/go.mod h1:4UKl9IzQMoD+QF79YdCuzCwp8VbmG4VAQwij/eHl5CU=
 github.com/aws/aws-sdk-go v1.15.11/go.mod h1:mFuSZ37Z9YOHbQEwBWztmVzqXrEkub65tZoCYDt7FT0=
 github.com/aws/aws-sdk-go v1.23.20/go.mod h1:KmX6BPdI08NWTb3/sm4ZGu5ShLoqVDhKgpiN924inxo=
