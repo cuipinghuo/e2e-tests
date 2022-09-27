@@ -15,9 +15,9 @@ require (
 	github.com/stretchr/testify v1.7.1
 	github.com/tektoncd/pipeline v0.33.0
 	gopkg.in/yaml.v2 v2.4.0
-	k8s.io/api v0.23.5
-	k8s.io/apimachinery v0.23.5
-	k8s.io/client-go v0.23.0
+	k8s.io/api v0.25.2
+	k8s.io/apimachinery v0.25.2
+	k8s.io/client-go v0.25.2
 	k8s.io/klog/v2 v2.40.1
 	sigs.k8s.io/controller-runtime v0.11.0
 )
