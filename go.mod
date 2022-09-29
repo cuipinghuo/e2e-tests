@@ -10,7 +10,7 @@ require (
 	github.com/onsi/gomega v1.19.0
 	github.com/openshift/api v0.0.0-20200930075302-db52bc4ef99f
 	github.com/redhat-appstudio/application-service v0.0.0-20220509130137-3bdbc6eecda4
-	github.com/redhat-appstudio/managed-gitops/backend v0.0.0-20220506042230-3a79f373a001
+	github.com/redhat-appstudio/managed-gitops/backend d868aef2b5db
 	github.com/redhat-appstudio/service-provider-integration-operator v0.5.0
 	github.com/stretchr/testify v1.7.1
 	github.com/tektoncd/pipeline v0.33.0
