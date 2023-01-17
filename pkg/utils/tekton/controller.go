@@ -3,9 +3,14 @@ package tekton
 import (
 	"context"
 	"fmt"
+	"io"
+	"regexp"
 	"strings"
 	"time"
 
+	"github.com/redhat-appstudio/e2e-tests/pkg/utils"
+
+	ecp "github.com/hacbs-contract/enterprise-contract-controller/api/v1alpha1"
 	kubeCl "github.com/redhat-appstudio/e2e-tests/pkg/apis/kubernetes"
 	"github.com/redhat-appstudio/e2e-tests/pkg/utils/common"
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
@@ -20,6 +25,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	crclient "sigs.k8s.io/controller-runtime/pkg/client"
+
+	g "github.com/onsi/ginkgo/v2"
 )
 
 type KubeController struct {
@@ -29,30 +36,23 @@ type KubeController struct {
 }
 
 type Bundles struct {
-	BuildTemplatesBundle            string
-	HACBSTemplatesBundle            string
-	HACBSCoreServiceTemplatesBundle string
-}
-
-// quay.io/redhat-appstudio/hacbs-core-service-templates-bundle is available only with the `latest` tag
-func coreServiceBundleName(defaultBuildBundle string) string {
-	parts := strings.SplitN(strings.Replace(defaultBuildBundle, "/build-", "/hacbs-core-service-", 1), ":", 2)
-
-	return parts[0] + ":latest"
+	BuildTemplatesBundle string
+	HACBSTemplatesBundle string
 }
 
 func newBundles(client kubernetes.Interface) (*Bundles, error) {
 	buildPipelineDefaults, err := client.CoreV1().ConfigMaps("build-templates").Get(context.TODO(), "build-pipelines-defaults", metav1.GetOptions{})
-	if err != nil {
+	if err != nil && !errors.IsNotFound(err) {
 		return nil, err
 	}
 
 	bundle := buildPipelineDefaults.Data["default_build_bundle"]
 
+	r := regexp.MustCompile(`([/:])(?:build|base)-`)
+
 	return &Bundles{
-		BuildTemplatesBundle:            bundle,
-		HACBSTemplatesBundle:            strings.Replace(bundle, "/build-", "/hacbs-", 1),
-		HACBSCoreServiceTemplatesBundle: coreServiceBundleName(bundle),
+		BuildTemplatesBundle: bundle,
+		HACBSTemplatesBundle: r.ReplaceAllString(bundle, "${1}hacbs-"),
 	}, nil
 }
 
@@ -103,6 +103,55 @@ func (s *SuiteController) GetPipelineRun(pipelineRunName, namespace string) (*v1
 	return s.PipelineClient().TektonV1beta1().PipelineRuns(namespace).Get(context.TODO(), pipelineRunName, metav1.GetOptions{})
 }
 
+func (s *SuiteController) fetchContainerLog(podName, containerName, namespace string) (string, error) {
+	podClient := s.K8sClient.KubeInterface().CoreV1().Pods(namespace)
+	req := podClient.GetLogs(podName, &corev1.PodLogOptions{Container: containerName})
+	readCloser, err := req.Stream(context.TODO())
+	log := ""
+	if err != nil {
+		return log, err
+	}
+	defer readCloser.Close()
+	b, err := io.ReadAll(readCloser)
+	if err != nil {
+		return log, err
+	}
+	return string(b[:]), nil
+}
+
+func (s *SuiteController) GetPipelineRunLogs(pipelineRunName, namespace string) (string, error) {
+	podClient := s.K8sClient.KubeInterface().CoreV1().Pods(namespace)
+	podList, err := podClient.List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return "", err
+	}
+	podLog := ""
+	for _, pod := range podList.Items {
+		if !strings.HasPrefix(pod.Name, pipelineRunName) {
+			continue
+		}
+		for _, c := range pod.Spec.InitContainers {
+			var err error
+			var cLog string
+			cLog, err = s.fetchContainerLog(pod.Name, c.Name, namespace)
+			podLog = podLog + fmt.Sprintf("\ninit container %s: \n", c.Name) + cLog
+			if err != nil {
+				return podLog, err
+			}
+		}
+		for _, c := range pod.Spec.Containers {
+			var err error
+			var cLog string
+			cLog, err = s.fetchContainerLog(pod.Name, c.Name, namespace)
+			podLog = podLog + fmt.Sprintf("\ncontainer %s: \n", c.Name) + cLog
+			if err != nil {
+				return podLog, err
+			}
+		}
+	}
+	return podLog, nil
+}
+
 func (s *SuiteController) CheckPipelineRunStarted(pipelineRunName, namespace string) wait.ConditionFunc {
 	return func() (bool, error) {
 		pr, err := s.GetPipelineRun(pipelineRunName, namespace)
@@ -134,9 +183,26 @@ func (s *SuiteController) CreateTask(task *v1beta1.Task, ns string) (*v1beta1.Ta
 	return s.PipelineClient().TektonV1beta1().Tasks(ns).Create(context.TODO(), task, metav1.CreateOptions{})
 }
 
-// Create a tekton taskRun and return the taskRun or error
+func (s *SuiteController) DeleteTask(name, ns string) error {
+	return s.PipelineClient().TektonV1beta1().Tasks(ns).Delete(context.TODO(), name, metav1.DeleteOptions{})
+}
+
+// Create a tekton pipelineRun and return the pipelineRun or error
 func (s *SuiteController) CreatePipelineRun(pipelineRun *v1beta1.PipelineRun, ns string) (*v1beta1.PipelineRun, error) {
 	return s.PipelineClient().TektonV1beta1().PipelineRuns(ns).Create(context.TODO(), pipelineRun, metav1.CreateOptions{})
+}
+
+func (s *SuiteController) DeletePipelineRun(name, ns string) error {
+	return s.PipelineClient().TektonV1beta1().PipelineRuns(ns).Delete(context.TODO(), name, metav1.DeleteOptions{})
+}
+
+// Create a tekton pipeline and return the pipeline or error
+func (s *SuiteController) CreatePipeline(pipeline *v1beta1.Pipeline, ns string) (*v1beta1.Pipeline, error) {
+	return s.PipelineClient().TektonV1beta1().Pipelines(ns).Create(context.TODO(), pipeline, metav1.CreateOptions{})
+}
+
+func (s *SuiteController) DeletePipeline(name, ns string) error {
+	return s.PipelineClient().TektonV1beta1().Pipelines(ns).Delete(context.TODO(), name, metav1.DeleteOptions{})
 }
 
 func (s *SuiteController) ListTaskRuns(ns string, labelKey string, labelValue string, selectorLimit int64) (*v1beta1.TaskRunList, error) {
@@ -148,8 +214,21 @@ func (s *SuiteController) ListTaskRuns(ns string, labelKey string, labelValue st
 	return s.PipelineClient().TektonV1beta1().TaskRuns(ns).List(context.TODO(), listOptions)
 }
 
+func (s *SuiteController) ListAllTaskRuns(ns string) (*v1beta1.TaskRunList, error) {
+	return s.PipelineClient().TektonV1beta1().TaskRuns(ns).List(context.TODO(), metav1.ListOptions{})
+}
+
+func (s *SuiteController) ListAllPipelineRuns(ns string) (*v1beta1.PipelineRunList, error) {
+	return s.PipelineClient().TektonV1beta1().PipelineRuns(ns).List(context.TODO(), metav1.ListOptions{})
+}
+
+func (s *SuiteController) DeleteTaskRun(name, ns string) error {
+	return s.PipelineClient().TektonV1beta1().TaskRuns(ns).Delete(context.TODO(), name, metav1.DeleteOptions{})
+}
+
 func (k KubeController) WatchPipelineRun(pipelineRunName string, taskTimeout int) error {
-	return k.Commonctrl.WaitUntil(k.Tektonctrl.CheckPipelineRunFinished(pipelineRunName, k.Namespace), time.Duration(taskTimeout)*time.Second)
+	g.GinkgoWriter.Printf("Waiting for pipeline %q to finish\n", pipelineRunName)
+	return utils.WaitUntil(k.Tektonctrl.CheckPipelineRunFinished(pipelineRunName, k.Namespace), time.Duration(taskTimeout)*time.Second)
 }
 
 func (k KubeController) GetTaskRunResult(pr *v1beta1.PipelineRun, pipelineTaskName string, result string) (string, error) {
@@ -161,7 +240,7 @@ func (k KubeController) GetTaskRunResult(pr *v1beta1.PipelineRun, pipelineTaskNa
 		for _, trResult := range tr.Status.TaskRunResults {
 			if trResult.Name == result {
 				// for some reason the result might contain \n suffix
-				return strings.TrimSuffix(trResult.Value, "\n"), nil
+				return strings.TrimSuffix(trResult.Value.StringVal, "\n"), nil
 			}
 		}
 	}
@@ -199,6 +278,54 @@ func (k KubeController) RunPipeline(g PipelineRunGenerator, taskTimeout int) (*v
 	}
 
 	return k.createAndWait(pr, taskTimeout)
+}
+
+// DeleteAllPipelineRunsInASpecificNamespace deletes all PipelineRuns in a given namespace (removing the finalizers field, first)
+func (s *SuiteController) DeleteAllPipelineRunsInASpecificNamespace(ns string) error {
+
+	pipelineRunList, err := s.ListAllPipelineRuns(ns)
+	if err != nil || pipelineRunList == nil {
+		return fmt.Errorf("unable to delete all PipelineRuns in '%s': %v", ns, err)
+	}
+
+	for _, pipelineRun := range pipelineRunList.Items {
+		err := wait.PollImmediate(time.Second, 30*time.Second, func() (done bool, err error) {
+			pipelineRunCR := v1beta1.PipelineRun{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      pipelineRun.Name,
+					Namespace: ns,
+				},
+			}
+			if err := s.K8sClient.KubeRest().Get(context.TODO(), crclient.ObjectKeyFromObject(&pipelineRunCR), &pipelineRunCR); err != nil {
+				if errors.IsNotFound(err) {
+					// PipelinerRun CR is already removed
+					return true, nil
+				}
+				g.GinkgoWriter.Printf("unable to retrieve PipelineRun '%s' in '%s': %v\n", pipelineRunCR.Name, pipelineRunCR.Namespace, err)
+				return false, nil
+
+			}
+
+			// Remove the finalizer, so that it can be deleted.
+			pipelineRunCR.Finalizers = []string{}
+			if err := s.K8sClient.KubeRest().Update(context.TODO(), &pipelineRunCR); err != nil {
+				g.GinkgoWriter.Printf("unable to remove finalizers from PipelineRun '%s' in '%s': %v\n", pipelineRunCR.Name, pipelineRunCR.Namespace, err)
+				return false, nil
+			}
+
+			if err := s.K8sClient.KubeRest().Delete(context.TODO(), &pipelineRunCR); err != nil {
+				g.GinkgoWriter.Printf("unable to delete PipelineRun '%s' in '%s': %v\n", pipelineRunCR.Name, pipelineRunCR.Namespace, err)
+				return false, nil
+			}
+			return true, nil
+		})
+		if err != nil {
+			return fmt.Errorf("deletion of PipelineRun '%s' in '%s' timed out", pipelineRun.Name, ns)
+		}
+
+	}
+
+	return nil
 }
 
 func createPVC(pvcs v1.PersistentVolumeClaimInterface, pvcName string) error {
@@ -244,7 +371,8 @@ func (k KubeController) createAndWait(pr *v1beta1.PipelineRun, taskTimeout int) 
 	if err != nil {
 		return nil, err
 	}
-	return pipelineRun, k.Commonctrl.WaitUntil(k.Tektonctrl.CheckPipelineRunStarted(pipelineRun.Name, k.Namespace), time.Duration(taskTimeout)*time.Second)
+	g.GinkgoWriter.Printf("Creating Pipeline %q\n", pipelineRun.Name)
+	return pipelineRun, utils.WaitUntil(k.Tektonctrl.CheckPipelineRunStarted(pipelineRun.Name, k.Namespace), time.Duration(taskTimeout)*time.Second)
 }
 
 // FindCosignResultsForImage looks for .sig and .att image tags in the OpenShift image stream for the provided image reference.
@@ -261,17 +389,6 @@ func findCosignResultsForImage(imageRef string, client crclient.Client) (*Cosign
 	imageNameInfo := strings.Split(imageInfo[2], "@")
 	imageStreamName, imageDigest := imageNameInfo[0], imageNameInfo[1]
 
-	tags := &unstructured.UnstructuredList{}
-	tags.SetGroupVersionKind(schema.GroupVersionKind{
-		Group:   "image.openshift.io",
-		Kind:    "ImageStreamTag",
-		Version: "v1",
-	})
-
-	if err := client.List(context.TODO(), tags, &crclient.ListOptions{Namespace: namespace}); err != nil {
-		return nil, err
-	}
-
 	// Cosign creates tags for attestation and signature based on the image digest. Compute
 	// the expected prefix for later usage: sha256:abcd... -> sha256-abcd...
 	// Also, this prefix is really the prefix of the ImageStreamTag resource which follows the
@@ -280,12 +397,26 @@ func findCosignResultsForImage(imageRef string, client crclient.Client) (*Cosign
 
 	results := CosignResult{}
 
-	if signatureTag := findTagWithName(tags, cosignImagePrefix+".sig"); signatureTag != nil {
+	if signatureTag, err := findTagWithName(client, namespace, cosignImagePrefix+".sig"); err == nil {
 		results.signatureImageRef = signatureTag.GetName()
 	}
 
-	if attestationTag := findTagWithName(tags, cosignImagePrefix+".att"); attestationTag != nil {
-		results.attestationImageRef = attestationTag.GetName()
+	if attestationTag, err := findTagWithName(client, namespace, cosignImagePrefix+".att"); err == nil {
+		// we want two layers, one for TaskRun and one for PipelineRun
+		// attestations, i.e. that the Chains controller reconcilled both and
+		// uploaded them as layers
+		img, ok := attestationTag.Object["image"]
+		if ok {
+			img, ok = img.(map[string]interface{})
+		}
+		var layers []interface{}
+		if ok {
+			layers, ok = img.(map[string]interface{})["dockerImageLayers"].([]interface{})
+		}
+		// this needs to change if/when Chains controller does not produce two layers
+		if ok && len(layers) == 2 {
+			results.attestationImageRef = attestationTag.GetName()
+		}
 	}
 
 	// we found both
@@ -299,14 +430,20 @@ func findCosignResultsForImage(imageRef string, client crclient.Client) (*Cosign
 	}, results.Missing(cosignImagePrefix))
 }
 
-func findTagWithName(tags *unstructured.UnstructuredList, name string) *unstructured.Unstructured {
-	for _, tag := range tags.Items {
-		if tag.GetName() == name {
-			return &tag
-		}
+func findTagWithName(client crclient.Client, namespace, name string) (*unstructured.Unstructured, error) {
+	tag := unstructured.Unstructured{}
+	tag.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   "image.openshift.io",
+		Kind:    "ImageStreamTag",
+		Version: "v1",
+	})
+	tag.SetName(name)
+	tag.SetNamespace(namespace)
+	if err := client.Get(context.TODO(), crclient.ObjectKeyFromObject(&tag), &tag); err != nil {
+		return nil, err
 	}
 
-	return nil
+	return &tag, nil
 }
 
 func (k KubeController) CreateOrUpdateSigningSecret(publicKey []byte, name, namespace string) (err error) {
@@ -349,32 +486,43 @@ func (k KubeController) GetPublicKey(name, namespace string) (publicKey []byte, 
 	return
 }
 
-func (k KubeController) CreateOrUpdateConfigPolicy(namespace string, policy string) (err error) {
-	api := k.Tektonctrl.K8sClient.KubeInterface().CoreV1().ConfigMaps(namespace)
-	ctx := context.TODO()
-
-	configPolicyName := "ec-policy"
-	expectedConfigMap := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{Name: configPolicyName},
-		Data:       map[string]string{"policy.json": policy},
+func (k KubeController) CreateOrUpdatePolicyConfiguration(namespace string, policy ecp.EnterpriseContractPolicySpec) error {
+	ecPolicy := ecp.EnterpriseContractPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "ec-policy",
+			Namespace: namespace,
+		},
 	}
 
-	cm, err := api.Get(ctx, configPolicyName, metav1.GetOptions{})
+	// fetch to see if it exists
+	err := k.Tektonctrl.K8sClient.KubeRest().Get(context.TODO(), crclient.ObjectKey{
+		Namespace: namespace,
+		Name:      "ec-policy",
+	}, &ecPolicy)
+
+	exists := true
 	if err != nil {
-		if !errors.IsNotFound(err) {
-			return
+		if errors.IsNotFound(err) {
+			exists = false
+		} else {
+			return err
 		}
-		if _, err = api.Create(ctx, expectedConfigMap, metav1.CreateOptions{}); err != nil {
-			return
+	}
+
+	ecPolicy.Spec = policy
+	if !exists {
+		// it doesn't, so create
+		if err := k.Tektonctrl.K8sClient.KubeRest().Create(context.TODO(), &ecPolicy); err != nil {
+			return err
 		}
 	} else {
-		if cm.Data["policy.json"] != policy {
-			if _, err = api.Update(ctx, expectedConfigMap, metav1.UpdateOptions{}); err != nil {
-				return
-			}
+		// it does, so update
+		if err := k.Tektonctrl.K8sClient.KubeRest().Update(context.TODO(), &ecPolicy); err != nil {
+			return err
 		}
 	}
-	return
+
+	return nil
 }
 
 func (k KubeController) GetRekorHost() (rekorHost string, err error) {
@@ -391,4 +539,16 @@ func (k KubeController) GetRekorHost() (rekorHost string, err error) {
 		rekorHost = "https://rekor.sigstore.dev"
 	}
 	return
+}
+
+// CreateEnterpriseContractPolicy creates an EnterpriseContractPolicy.
+func (s *SuiteController) CreateEnterpriseContractPolicy(name, namespace string, ecpolicy ecp.EnterpriseContractPolicySpec) (*ecp.EnterpriseContractPolicy, error) {
+	ec := &ecp.EnterpriseContractPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: ecpolicy,
+	}
+	return ec, s.K8sClient.KubeRest().Create(context.TODO(), ec)
 }
