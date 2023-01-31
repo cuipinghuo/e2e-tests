@@ -66,33 +66,35 @@ var _ = framework.HASSuiteDescribe("[test_id:02] private devfile source", Label(
 	})
 
 	AfterAll(func() {
-		err := framework.HasController.DeleteHasComponent(componentName, testNamespace, false)
-		Expect(err).NotTo(HaveOccurred())
+		if !CurrentSpecReport().Failed() {
+			err := framework.HasController.DeleteHasComponent(componentName, testNamespace, false)
+			Expect(err).NotTo(HaveOccurred())
 
-		err = framework.HasController.DeleteHasApplication(applicationName, testNamespace, false)
-		Expect(err).NotTo(HaveOccurred())
+			err = framework.HasController.DeleteHasApplication(applicationName, testNamespace, false)
+			Expect(err).NotTo(HaveOccurred())
 
-		err = framework.SPIController.DeleteAllBindingTokensInASpecificNamespace(testNamespace)
-		Expect(err).NotTo(HaveOccurred())
+			err = framework.SPIController.DeleteAllBindingTokensInASpecificNamespace(testNamespace)
+			Expect(err).NotTo(HaveOccurred())
 
-		Eventually(func() bool {
-			// application info should be stored even after deleting the application in application variable
-			gitOpsRepository := utils.ObtainGitOpsRepositoryName(application.Status.Devfile)
+			Eventually(func() bool {
+				// application info should be stored even after deleting the application in application variable
+				gitOpsRepository := utils.ObtainGitOpsRepositoryName(application.Status.Devfile)
 
-			return framework.CommonController.Github.CheckIfRepositoryExist(gitOpsRepository)
-		}, 1*time.Minute, 100*time.Millisecond).Should(BeFalse(), "Has controller didn't remove Red Hat AppStudio application gitops repository")
+				return framework.CommonController.Github.CheckIfRepositoryExist(gitOpsRepository)
+			}, 1*time.Minute, 100*time.Millisecond).Should(BeFalse(), "Has controller didn't remove Red Hat AppStudio application gitops repository")
 
-		Expect(framework.CommonController.DeleteNamespace(testNamespace)).To(Succeed())
+			Expect(framework.CommonController.DeleteNamespace(testNamespace)).To(Succeed())
+		}
 	})
 
-	It("Create Red Hat AppStudio Application", func() {
+	It("creates Red Hat AppStudio Application", func() {
 		createdApplication, err := framework.HasController.CreateHasApplication(applicationName, testNamespace)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(createdApplication.Spec.DisplayName).To(Equal(applicationName))
 		Expect(createdApplication.Namespace).To(Equal(testNamespace))
 	})
 
-	It("Check Red Hat AppStudio Application health", func() {
+	It("checks Red Hat AppStudio Application health", func() {
 		Eventually(func() string {
 			application, err = framework.HasController.GetHasApplication(applicationName, testNamespace)
 			Expect(err).NotTo(HaveOccurred())
@@ -109,20 +111,20 @@ var _ = framework.HASSuiteDescribe("[test_id:02] private devfile source", Label(
 	})
 
 	// Necessary for component pipeline
-	It("Check if 'git-clone' cluster tasks exists", func() {
+	It("checks if 'git-clone' cluster tasks exists", func() {
 		Eventually(func() bool {
 			return framework.CommonController.CheckIfClusterTaskExists("git-clone")
 		}, 5*time.Minute, 45*time.Second).Should(BeTrue(), "'git-clone' cluster task don't exist in cluster. Component cannot be created")
 	})
 
-	It("Create Red Hat AppStudio ComponentDetectionQuery for Component repository", func() {
+	It("creates Red Hat AppStudio ComponentDetectionQuery for Component repository", func() {
 		cdq, err := framework.HasController.CreateComponentDetectionQuery(componentName, testNamespace, QuarkusDevfileSource, "", false)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(cdq.Name).To(Equal(componentName))
 
 	})
 
-	It("Check Red Hat AppStudio ComponentDetectionQuery status", func() {
+	It("checks Red Hat AppStudio ComponentDetectionQuery status", func() {
 		// Validate that the CDQ completes successfully
 		Eventually(func() bool {
 			// application info should be stored even after deleting the application in application variable
@@ -141,7 +143,7 @@ var _ = framework.HASSuiteDescribe("[test_id:02] private devfile source", Label(
 		}
 	})
 
-	It("Create Red Hat AppStudio Quarkus component", func() {
+	It("creates Red Hat AppStudio Quarkus component", func() {
 		component, err := framework.HasController.CreateComponentFromStub(compDetected, componentName, testNamespace, oauthSecretName, applicationName)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(component.Name).To(Equal(componentName))

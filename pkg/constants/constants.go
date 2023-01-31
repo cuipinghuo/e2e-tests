@@ -14,7 +14,7 @@ const (
 	// The quay.io username to perform container builds and puush
 	QUAY_OAUTH_USER_ENV string = "QUAY_OAUTH_USER" // #nosec
 
-	// The quay.io token to perform container builds and puush. The token must be corelated with the QUAY_OAUTH_USER environment
+	// The quay.io token to perform container builds and push. The token must be correlated with the QUAY_OAUTH_USER environment
 	QUAY_OAUTH_TOKEN_ENV string = "QUAY_OAUTH_TOKEN" // #nosec
 
 	// The private devfile sample git repository to use in certain HAS e2e tests
@@ -59,11 +59,15 @@ const (
 
 	RegistryAuthSecretName = "redhat-appstudio-registry-pull-secret"
 
-	JVMUserConfigMapName = "jvm-build-config"
-	JVMEnableRebuilds    = "enable-rebuilds"
+	SharedPullSecretName      = "redhat-appstudio-user-workload"
+	SharedPullSecretNamespace = "build-templates"
+
+	JVMBuildImageSecretName = "jvm-build-image-secrets"
+	JBSConfigName           = "jvm-build-config"
 )
 
 var (
-	ComponentDefaultLabel      = map[string]string{"e2e-test": "true"}
-	ComponentDefaultAnnotation = map[string]string{"com.redhat.appstudio/component-initial-build-processed": "true"}
+	ComponentDefaultLabel         = map[string]string{"e2e-test": "true"}
+	ComponentDefaultAnnotation    = map[string]string{"appstudio.openshift.io/component-initial-build": "processed"}
+	ComponentPaCRequestAnnotation = map[string]string{"appstudio.openshift.io/pac-provision": "request"}
 )

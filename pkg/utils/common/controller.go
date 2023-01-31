@@ -90,6 +90,23 @@ func (s *SuiteController) DeleteSecret(ns string, name string) error {
 	return s.KubeInterface().CoreV1().Secrets(ns).Delete(context.TODO(), name, metav1.DeleteOptions{})
 }
 
+// Links a secret to a specified serviceaccount
+func (s *SuiteController) LinkSecretToServiceAccount(ns, secret, serviceaccount string) error {
+	serviceAccountObject, err := s.KubeInterface().CoreV1().ServiceAccounts(ns).Get(context.TODO(), serviceaccount, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	for _, credentialSecret := range serviceAccountObject.Secrets {
+		if credentialSecret.Name == secret {
+			// The secret is present in the service account, no updates needed
+			return nil
+		}
+	}
+	serviceAccountObject.Secrets = append(serviceAccountObject.Secrets, corev1.ObjectReference{Name: secret})
+	_, err = s.KubeInterface().CoreV1().ServiceAccounts(ns).Update(context.TODO(), serviceAccountObject, metav1.UpdateOptions{})
+	return err
+}
+
 func (s *SuiteController) GetPod(namespace, podName string) (*corev1.Pod, error) {
 	return s.KubeInterface().CoreV1().Pods(namespace).Get(context.TODO(), podName, metav1.GetOptions{})
 }
@@ -423,7 +440,8 @@ func (s *SuiteController) CreateTestNamespace(name string) (*corev1.Namespace, e
 	}
 
 	// "pipeline" service account needs to be present in the namespace before we start with creating tekton resources
-	if err := utils.WaitUntil(s.ServiceaccountPresent("pipeline", name), time.Second*30); err != nil {
+	// TODO: STONE-442 - decrease the timeout here back to 30 seconds once this issue is resolved.
+	if err := utils.WaitUntil(s.ServiceaccountPresent("pipeline", name), time.Second*60); err != nil {
 		return nil, fmt.Errorf("'pipeline' service account wasn't created in %s namespace: %+v", name, err)
 	}
 

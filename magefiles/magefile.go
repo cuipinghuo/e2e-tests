@@ -89,7 +89,7 @@ func (ci CI) PrepareE2EBranch() error {
 			return err
 		}
 	} else {
-		if ci.isPRPairingRequired() {
+		if ci.isPRPairingRequired("e2e-tests") {
 			if err := gitCheckoutRemoteBranch(pr.Author, pr.BranchName); err != nil {
 				return err
 			}
@@ -143,7 +143,7 @@ func (Local) CleanupGithubOrg() error {
 		// Add only repos older than 24 hours
 		dayDuration, _ := time.ParseDuration("24h")
 		if time.Since(repo.GetCreatedAt().Time) > dayDuration {
-			// Add only repos machting the regex
+			// Add only repos matching the regex
 			if r.MatchString(*repo.Name) {
 				reposToDelete = append(reposToDelete, repo)
 			}
@@ -190,7 +190,7 @@ func (ci CI) TestE2E() error {
 		return fmt.Errorf("error when bootstrapping cluster: %v", err)
 	}
 	if err := RegisterUser(); err != nil {
-		return fmt.Errorf("error when registerin user via toolchain operators: %v", err)
+		return fmt.Errorf("error when registering user via toolchain operators: %v", err)
 	}
 	if err := GenerateUserKubeconfig(); err != nil {
 		return fmt.Errorf("error while generating user's kubeconfig file: %v", err)
@@ -235,7 +235,7 @@ func PreflightChecks() error {
 	return nil
 }
 
-func (CI) setRequiredEnvVars() error {
+func (ci CI) setRequiredEnvVars() error {
 
 	if strings.Contains(jobName, "hacbs-e2e-periodic") {
 		os.Setenv("E2E_TEST_SUITE_LABEL", "HACBS")
@@ -278,6 +278,11 @@ func (CI) setRequiredEnvVars() error {
 			os.Setenv("INFRA_DEPLOYMENTS_BRANCH", pr.BranchName)
 		}
 
+	} else {
+		if ci.isPRPairingRequired("infra-deployments") {
+			os.Setenv("INFRA_DEPLOYMENTS_ORG", pr.RemoteName)
+			os.Setenv("INFRA_DEPLOYMENTS_BRANCH", pr.BranchName)
+		}
 	}
 
 	return nil
@@ -300,16 +305,17 @@ func BootstrapCluster() error {
 	return ic.InstallAppStudioPreviewMode()
 }
 
-func (CI) isPRPairingRequired() bool {
-	var ghBranches []GithubBranch
-	url := fmt.Sprintf("https://api.github.com/repos/%s/e2e-tests/branches", pr.RemoteName)
-	if err := sendHttpRequestAndParseResponse(url, "GET", &ghBranches); err != nil {
-		klog.Infof("cannot determine e2e-tests Github branches for author %s: %v. will stick with the redhat-appstudio/e2e-tests main branch for running tests", pr.Author, err)
+func (CI) isPRPairingRequired(repoForPairing string) bool {
+	var pullRequests []gh.PullRequest
+
+	url := fmt.Sprintf("https://api.github.com/repos/redhat-appstudio/%s/pulls?per_page=100", repoForPairing)
+	if err := sendHttpRequestAndParseResponse(url, "GET", &pullRequests); err != nil {
+		klog.Infof("cannot determine %s Github branches for author %s: %v. will stick with the redhat-appstudio/%s main branch for running tests", repoForPairing, pr.Author, err, repoForPairing)
 		return false
 	}
 
-	for _, b := range ghBranches {
-		if b.Name == pr.BranchName {
+	for _, pull := range pullRequests {
+		if pull.GetHead().GetRef() == pr.BranchName && pull.GetUser().GetLogin() == pr.RemoteName {
 			return true
 		}
 	}
@@ -480,7 +486,7 @@ func (Local) GenerateTestSpecFile() error {
 
 }
 
-// Creates preapproved userSignup CR cluster and waits for its reconcilliation
+// Creates preapproved userSignup CR cluster and waits for its reconciliation
 func RegisterUser() error {
 	kubeClient, err := client.NewK8SClient()
 	if err != nil {

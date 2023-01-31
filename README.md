@@ -12,7 +12,7 @@ It is recommended to install AppStudio in E2E mode, but the E2E suite can be als
 * Ability to run the test suites separately.
 
 # Running the tests
-Whnen you want to run the E2E tests for AppStudio you need to have installed tools(in Requirements chapter), installed the AppStudio in E2E mode and compiled `e2e-appstudio` binary.
+When you want to run the E2E tests for AppStudio you need to have installed tools(in Requirements chapter), installed the AppStudio in E2E mode and compiled `e2e-appstudio` binary.
 
 ## Requirements
 Requirements for installing AppStudio in E2E mode and running the E2E tests:
@@ -74,15 +74,11 @@ $ go mod tidy
 $ go mod vendor
 ```
 
-4. Install Red Hat AppStudio in e2e mode with install script in scripts folder. The e2e framework will use by default the `redhat-appstudio-qe` GitHub organization(you can change the GitHub organization by environment variable `GITHUB_E2E_ORGANIZATION`).
+4. Install Red Hat AppStudio in e2e mode with install script in scripts folder. The e2e framework will use by default the `redhat-appstudio-qe` GitHub organization(you can change the GitHub organization by environment variable `MY_GITHUB_ORG`).
 
    ```bash
       make local/cluster/prepare
    ```
-   or
-   ```bash
-       ./scripts/install-appstudio-e2e-mode.sh install
-    ```
 
 More information about how to deploy Red Hat AppStudio
 are in the [infra-deployments](https://github.com/redhat-appstudio/infra-deployments) repository.

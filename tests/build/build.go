@@ -49,7 +49,7 @@ var _ = framework.BuildSuiteDescribe("Build service E2E tests", Label("build", "
 	Expect(err).NotTo(HaveOccurred())
 
 	Describe("the component with git source (GitHub) is created", Ordered, Label("github-webhook"), func() {
-		var applicationName, componentName, pacBranchName, testNamespace, outputContainerImage, pacControllerHost string
+		var applicationName, componentName, componentBaseBranchName, pacBranchName, testNamespace, outputContainerImage, pacControllerHost string
 
 		var timeout, interval time.Duration
 
@@ -83,19 +83,28 @@ var _ = framework.BuildSuiteDescribe("Build service E2E tests", Label("build", "
 
 			componentName = fmt.Sprintf("%s-%s", "test-component-pac", util.GenerateRandomString(4))
 			pacBranchName = fmt.Sprintf("appstudio-%s", componentName)
+			componentDefaultBranchName := "main"
+			componentBaseBranchName = fmt.Sprintf("%s-%s", "base", util.GenerateRandomString(4))
 			outputContainerImage = fmt.Sprintf("quay.io/%s/test-images", utils.GetQuayIOOrganization())
 			// TODO: test image naming with provided image tag
 			// outputContainerImage = fmt.Sprintf("quay.io/%s/test-images:%s", utils.GetQuayIOOrganization(), strings.Replace(uuid.New().String(), "-", "", -1))
 
+			err = f.CommonController.Github.CreateRef(helloWorldComponentGitSourceRepoName, componentDefaultBranchName, componentBaseBranchName)
+			if err != nil {
+				Expect(err).ShouldNot(HaveOccurred())
+			}
 			// Create a component with Git Source URL being defined
-			_, err = f.HasController.CreateComponentWithPaCEnabled(applicationName, componentName, testNamespace, helloWorldComponentGitSourceURL, outputContainerImage)
+			_, err = f.HasController.CreateComponentWithPaCEnabled(applicationName, componentName, testNamespace, helloWorldComponentGitSourceURL, componentBaseBranchName, outputContainerImage)
 			Expect(err).ShouldNot(HaveOccurred())
 
 		})
 
 		AfterAll(func() {
-			Expect(f.HasController.DeleteHasApplication(applicationName, testNamespace, false)).To(Succeed())
-			Expect(f.HasController.DeleteHasComponent(componentName, testNamespace, false)).To(Succeed())
+			if !CurrentSpecReport().Failed() {
+				Expect(f.HasController.DeleteHasApplication(applicationName, testNamespace, false)).To(Succeed())
+				Expect(f.HasController.DeleteHasComponent(componentName, testNamespace, false)).To(Succeed())
+			}
+
 			pacInitTestFiles := []string{
 				fmt.Sprintf(".tekton/%s-pull-request.yaml", componentName),
 				fmt.Sprintf(".tekton/%s-push.yaml", componentName),
@@ -109,7 +118,12 @@ var _ = framework.BuildSuiteDescribe("Build service E2E tests", Label("build", "
 				}
 			}
 
+			// Delete new branch created by PaC and a testing branch used as a component's base branch
 			err = f.CommonController.Github.DeleteRef(helloWorldComponentGitSourceRepoName, pacBranchName)
+			if err != nil {
+				Expect(err.Error()).To(ContainSubstring("Reference does not exist"))
+			}
+			err = f.CommonController.Github.DeleteRef(helloWorldComponentGitSourceRepoName, componentBaseBranchName)
 			if err != nil {
 				Expect(err.Error()).To(ContainSubstring("Reference does not exist"))
 			}
@@ -162,7 +176,7 @@ var _ = framework.BuildSuiteDescribe("Build service E2E tests", Label("build", "
 			})
 
 			It("the PipelineRun should eventually finish successfully", func() {
-				timeout = time.Second * 600
+				timeout = time.Minute * 15
 				interval = time.Second * 10
 				Eventually(func() bool {
 
@@ -240,7 +254,7 @@ var _ = framework.BuildSuiteDescribe("Build service E2E tests", Label("build", "
 				}, timeout, interval).Should(BeTrue(), "timed out when waiting for the PipelineRun to start")
 			})
 			It("PipelineRun should eventually finish", func() {
-				timeout = time.Minute * 5
+				timeout = time.Minute * 10
 				interval = time.Second * 10
 
 				Eventually(func() bool {
@@ -315,8 +329,8 @@ var _ = framework.BuildSuiteDescribe("Build service E2E tests", Label("build", "
 					return pipelineRun.HasStarted()
 				}, timeout, interval).Should(BeTrue(), "timed out when waiting for the PipelineRun to start")
 			})
-			It("PipelineRun should eventually finish", func() {
-				timeout = time.Minute * 5
+			It("pipelineRun should eventually finish", func() {
+				timeout = time.Minute * 10
 				interval = time.Second * 10
 
 				Eventually(func() bool {
@@ -354,7 +368,7 @@ var _ = framework.BuildSuiteDescribe("Build service E2E tests", Label("build", "
 					return errors.IsNotFound(err)
 				}, time.Minute*1, time.Second*1).Should(BeTrue(), "timed out when waiting for the app %s to be deleted in %s namespace", applicationName, testNamespace)
 
-				_, err = f.HasController.CreateComponentWithPaCEnabled(applicationName, componentName, testNamespace, helloWorldComponentGitSourceURL, outputContainerImage)
+				_, err = f.HasController.CreateComponentWithPaCEnabled(applicationName, componentName, testNamespace, helloWorldComponentGitSourceURL, componentBaseBranchName, outputContainerImage)
 			})
 
 			It("should no longer lead to a creation of a PaC PR", func() {
@@ -419,7 +433,7 @@ var _ = framework.BuildSuiteDescribe("Build service E2E tests", Label("build", "
 			// Do cleanup only in case the test succeeded
 			if !CurrentSpecReport().Failed() {
 				// Clean up only Application CR (Component and Pipelines are included) in case we are targeting specific namespace
-				// Used e.g. in build-defintions e2e tests, where we are targeting build-templates-e2e namespace
+				// Used e.g. in build-definitions e2e tests, where we are targeting build-templates-e2e namespace
 				if os.Getenv(constants.E2E_APPLICATIONS_NAMESPACE_ENV) != "" {
 					DeferCleanup(f.HasController.DeleteHasApplication, applicationName, testNamespace, false)
 				} else {
@@ -450,7 +464,7 @@ var _ = framework.BuildSuiteDescribe("Build service E2E tests", Label("build", "
 			gitUrl := gitUrl
 
 			It(fmt.Sprintf("should eventually finish successfully for component with source URL %s", gitUrl), Label(buildTemplatesTestLabel), func() {
-				timeout := time.Second * 900
+				timeout := time.Second * 1200
 				interval := time.Second * 10
 				Eventually(func() bool {
 					pipelineRun, err := f.HasController.GetComponentPipelineRun(componentNames[i], applicationName, testNamespace, false, "")
@@ -742,6 +756,8 @@ var _ = framework.BuildSuiteDescribe("Build service E2E tests", Label("build", "
 
 			_, err = f.CommonController.CreateSecret(testNamespace, dummySecret)
 			Expect(err).ToNot(HaveOccurred())
+			err = f.CommonController.LinkSecretToServiceAccount(testNamespace, dummySecret.Name, "pipeline")
+			Expect(err).ToNot(HaveOccurred())
 
 			componentName = "build-suite-test-secret-overriding"
 			outputContainerImage = fmt.Sprintf("quay.io/%s/test-images:%s", utils.GetQuayIOOrganization(), strings.Replace(uuid.New().String(), "-", "", -1))
@@ -763,14 +779,7 @@ var _ = framework.BuildSuiteDescribe("Build service E2E tests", Label("build", "
 
 			pipelineRun, err := f.HasController.GetComponentPipelineRun(componentName, applicationName, testNamespace, false, "")
 			Expect(err).ShouldNot(HaveOccurred())
-			Expect(pipelineRun.Spec.Workspaces).To(HaveLen(2))
-			registryAuthWorkspace := &v1beta1.WorkspaceBinding{
-				Name: "registry-auth",
-				Secret: &v1.SecretVolumeSource{
-					SecretName: "redhat-appstudio-registry-pull-secret",
-				},
-			}
-			Expect(pipelineRun.Spec.Workspaces).To(ContainElement(*registryAuthWorkspace))
+			Expect(pipelineRun.Spec.Workspaces).To(HaveLen(1))
 		})
 
 		It("should not be possible to push to quay.io repo (PipelineRun should fail)", func() {

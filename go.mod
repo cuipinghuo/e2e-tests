@@ -4,7 +4,6 @@ go 1.18
 
 require (
 	github.com/avast/retry-go/v4 v4.3.2
-	github.com/averageflow/gohooks/v2 v2.1.0
 	github.com/codeready-toolchain/api v0.0.0-20220511141428-1adfed7d17b0
 	github.com/codeready-toolchain/toolchain-e2e v0.0.0-20220525131508-60876bfb99d3
 	github.com/devfile/library v1.2.1-0.20211104222135-49d635cb492f
@@ -25,7 +24,7 @@ require (
 	github.com/redhat-appstudio/application-service v0.0.0-20221129172232-763cbbe1992e
 	github.com/redhat-appstudio/build-service v0.0.0-20230105230040-fd3097c1b686
 	github.com/redhat-appstudio/integration-service v0.0.0-20220622135319-863425d2cad2
-	github.com/redhat-appstudio/jvm-build-service v0.0.0-20221128055414-018f50a9d68e
+	github.com/redhat-appstudio/jvm-build-service v0.0.0-20230125042419-efd0d0342a2c
 	github.com/redhat-appstudio/managed-gitops/backend v0.0.0-20220506042230-3a79f373a001
 	github.com/redhat-appstudio/managed-gitops/backend-shared v0.0.0
 	github.com/redhat-appstudio/release-service v0.0.0-20221124083149-2b9e7545bcab
@@ -42,7 +41,6 @@ require (
 	k8s.io/apimachinery v0.26.0
 	k8s.io/cli-runtime v0.24.3
 	k8s.io/client-go v0.25.4
-	k8s.io/klog v1.0.0
 	k8s.io/klog/v2 v2.80.1
 	k8s.io/utils v0.0.0-20221128185143-99ec85e7a448
 	knative.dev/pkg v0.0.0-20221011175852-714b7630a836
@@ -176,15 +174,14 @@ require (
 	github.com/opencontainers/image-spec v1.1.0-rc2 // indirect
 	github.com/opencontainers/runc v1.1.2 // indirect
 	github.com/opencontainers/runtime-spec v1.0.3-0.20210326190908-1c3f411f0417 // indirect
-	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/operator-framework/api v0.13.0 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.1 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/prometheus/client_golang v1.13.0 // indirect
-	github.com/prometheus/client_model v0.2.0 // indirect
+	github.com/prometheus/client_golang v1.14.0 // indirect
+	github.com/prometheus/client_model v0.3.0 // indirect
 	github.com/prometheus/common v0.37.0 // indirect
 	github.com/prometheus/procfs v0.8.0 // indirect
 	github.com/prometheus/statsd_exporter v0.21.0 // indirect
@@ -234,6 +231,7 @@ require (
 	gotest.tools/v3 v3.3.0 // indirect
 	k8s.io/apiextensions-apiserver v0.25.2 // indirect
 	k8s.io/component-base v0.25.2 // indirect
+	k8s.io/klog v1.0.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20221012153701-172d655c2280 // indirect
 	k8s.io/kubectl v0.24.1 // indirect
 	k8s.io/metrics v0.24.1 // indirect
