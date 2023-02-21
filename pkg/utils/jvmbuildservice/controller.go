@@ -12,10 +12,10 @@ import (
 )
 
 type SuiteController struct {
-	*kubeCl.K8sClient
+	*kubeCl.CustomClient
 }
 
-func NewSuiteControler(kube *kubeCl.K8sClient) (*SuiteController, error) {
+func NewSuiteControler(kube *kubeCl.CustomClient) (*SuiteController, error) {
 	return &SuiteController{
 		kube,
 	}, nil
@@ -67,7 +67,11 @@ func (s *SuiteController) CreateJBSConfig(name, namespace, imageRegistryOwner st
 				Repository: "test-images",
 				PrependTag: strconv.FormatInt(time.Now().UnixMilli(), 10),
 			},
-			CacheSettings: v1alpha1.CacheSettings{},
+			CacheSettings: v1alpha1.CacheSettings{
+				RequestMemory: "256Mi",
+				RequestCPU:    "100m",
+				Storage:       "1Gi",
+			},
 			BuildSettings: v1alpha1.BuildSettings{},
 			RelocationPatterns: []v1alpha1.RelocationPatternElement{
 				{

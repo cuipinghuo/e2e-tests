@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -177,4 +178,14 @@ func ExecuteCommandInASpecificDirectory(command string, args []string, directory
 	}
 
 	return err
+}
+
+func ToPrettyJSONString(v interface{}) string {
+	s, _ := json.MarshalIndent(v, "", "  ")
+	return string(s)
+}
+
+// GetAdditionalInfo adds information regarding the application name and namespace of the test
+func GetAdditionalInfo(applicationName, namespace string) string {
+	return fmt.Sprintf("(application: %s, namespace: %s)", applicationName, namespace)
 }
