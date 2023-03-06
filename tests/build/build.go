@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/go-github/v44/github"
 	"github.com/redhat-appstudio/e2e-tests/pkg/utils/build"
+	"github.com/redhat-appstudio/e2e-tests/pkg/utils/tekton"
 
 	"github.com/devfile/library/pkg/util"
 	"github.com/google/uuid"
@@ -148,7 +149,7 @@ var _ = framework.BuildSuiteDescribe("Build service E2E tests", Label("build", "
 			timeout = time.Second * 600
 			interval = time.Second * 1
 			Eventually(func() bool {
-				pipelineRun, err := f.AsKubeAdmin.HasController.GetComponentPipelineRun(componentName, applicationName, testNamespace, true, "")
+				pipelineRun, err := f.AsKubeAdmin.HasController.GetComponentPipelineRun(componentName, applicationName, testNamespace, "")
 				if err != nil {
 					GinkgoWriter.Println("PipelineRun has not been created yet")
 					return false
@@ -183,7 +184,7 @@ var _ = framework.BuildSuiteDescribe("Build service E2E tests", Label("build", "
 				interval = time.Second * 10
 				Eventually(func() bool {
 
-					pipelineRun, err := f.AsKubeAdmin.HasController.GetComponentPipelineRun(componentName, applicationName, testNamespace, true, "")
+					pipelineRun, err := f.AsKubeAdmin.HasController.GetComponentPipelineRun(componentName, applicationName, testNamespace, "")
 					Expect(err).ShouldNot(HaveOccurred())
 
 					for _, condition := range pipelineRun.Status.Conditions {
@@ -194,12 +195,7 @@ var _ = framework.BuildSuiteDescribe("Build service E2E tests", Label("build", "
 						}
 
 						if !pipelineRun.GetStatusCondition().GetCondition(apis.ConditionSucceeded).IsTrue() {
-							failMessage := fmt.Sprintf("Pipelinerun '%s' didn't succeed\n", pipelineRun.Name)
-							d := utils.GetFailedPipelineRunDetails(pipelineRun)
-							if d.FailedContainerName != "" {
-								logs, _ := f.AsKubeAdmin.CommonController.GetContainerLogs(d.PodName, d.FailedContainerName, testNamespace)
-								failMessage += fmt.Sprintf("Logs from failed container '%s': \n%s", d.FailedContainerName, logs)
-							}
+							failMessage := tekton.GetFailedPipelineRunLogs(f.AsKubeAdmin.CommonController, pipelineRun)
 							Fail(failMessage)
 						}
 					}
@@ -248,7 +244,7 @@ var _ = framework.BuildSuiteDescribe("Build service E2E tests", Label("build", "
 				interval = time.Second * 1
 
 				Eventually(func() bool {
-					pipelineRun, err := f.AsKubeAdmin.HasController.GetComponentPipelineRun(componentName, applicationName, testNamespace, true, createdFileSHA)
+					pipelineRun, err := f.AsKubeAdmin.HasController.GetComponentPipelineRun(componentName, applicationName, testNamespace, createdFileSHA)
 					if err != nil {
 						GinkgoWriter.Println("PipelineRun has not been created yet")
 						return false
@@ -261,7 +257,7 @@ var _ = framework.BuildSuiteDescribe("Build service E2E tests", Label("build", "
 				interval = time.Second * 10
 
 				Eventually(func() bool {
-					pipelineRun, err := f.AsKubeAdmin.HasController.GetComponentPipelineRun(componentName, applicationName, testNamespace, true, createdFileSHA)
+					pipelineRun, err := f.AsKubeAdmin.HasController.GetComponentPipelineRun(componentName, applicationName, testNamespace, createdFileSHA)
 					Expect(err).ShouldNot(HaveOccurred())
 
 					for _, condition := range pipelineRun.Status.Conditions {
@@ -272,12 +268,7 @@ var _ = framework.BuildSuiteDescribe("Build service E2E tests", Label("build", "
 						}
 
 						if !pipelineRun.GetStatusCondition().GetCondition(apis.ConditionSucceeded).IsTrue() {
-							failMessage := fmt.Sprintf("Pipelinerun '%s' didn't succeed\n", pipelineRun.Name)
-							d := utils.GetFailedPipelineRunDetails(pipelineRun)
-							if d.FailedContainerName != "" {
-								logs, _ := f.AsKubeAdmin.CommonController.GetContainerLogs(d.PodName, d.FailedContainerName, testNamespace)
-								failMessage += fmt.Sprintf("Logs from failed container '%s': \n%s", d.FailedContainerName, logs)
-							}
+							failMessage := tekton.GetFailedPipelineRunLogs(f.AsKubeAdmin.CommonController, pipelineRun)
 							Fail(failMessage)
 						}
 					}
@@ -324,7 +315,7 @@ var _ = framework.BuildSuiteDescribe("Build service E2E tests", Label("build", "
 				interval = time.Second * 1
 
 				Eventually(func() bool {
-					pipelineRun, err := f.AsKubeAdmin.HasController.GetComponentPipelineRun(componentName, applicationName, testNamespace, true, mergeResultSha)
+					pipelineRun, err := f.AsKubeAdmin.HasController.GetComponentPipelineRun(componentName, applicationName, testNamespace, mergeResultSha)
 					if err != nil {
 						GinkgoWriter.Println("PipelineRun has not been created yet")
 						return false
@@ -332,12 +323,13 @@ var _ = framework.BuildSuiteDescribe("Build service E2E tests", Label("build", "
 					return pipelineRun.HasStarted()
 				}, timeout, interval).Should(BeTrue(), "timed out when waiting for the PipelineRun to start")
 			})
+
 			It("pipelineRun should eventually finish", func() {
 				timeout = time.Minute * 50
 				interval = time.Second * 10
 
 				Eventually(func() bool {
-					pipelineRun, err := f.AsKubeAdmin.HasController.GetComponentPipelineRun(componentName, applicationName, testNamespace, true, mergeResultSha)
+					pipelineRun, err := f.AsKubeAdmin.HasController.GetComponentPipelineRun(componentName, applicationName, testNamespace, mergeResultSha)
 					Expect(err).ShouldNot(HaveOccurred())
 
 					for _, condition := range pipelineRun.Status.Conditions {
@@ -348,12 +340,7 @@ var _ = framework.BuildSuiteDescribe("Build service E2E tests", Label("build", "
 						}
 
 						if !pipelineRun.GetStatusCondition().GetCondition(apis.ConditionSucceeded).IsTrue() {
-							failMessage := fmt.Sprintf("Pipelinerun '%s' didn't succeed\n", pipelineRun.Name)
-							d := utils.GetFailedPipelineRunDetails(pipelineRun)
-							if d.FailedContainerName != "" {
-								logs, _ := f.AsKubeAdmin.CommonController.GetContainerLogs(d.PodName, d.FailedContainerName, testNamespace)
-								failMessage += fmt.Sprintf("Logs from failed container '%s': \n%s", d.FailedContainerName, logs)
-							}
+							failMessage := tekton.GetFailedPipelineRunLogs(f.AsKubeAdmin.CommonController, pipelineRun)
 							Fail(failMessage)
 						}
 					}
@@ -454,7 +441,7 @@ var _ = framework.BuildSuiteDescribe("Build service E2E tests", Label("build", "
 				interval := time.Second * 1
 
 				Eventually(func() bool {
-					pipelineRun, err := f.AsKubeAdmin.HasController.GetComponentPipelineRun(componentNames[i], applicationName, testNamespace, false, "")
+					pipelineRun, err := f.AsKubeAdmin.HasController.GetComponentPipelineRun(componentNames[i], applicationName, testNamespace, "")
 					if err != nil {
 						GinkgoWriter.Println("PipelineRun has not been created yet")
 						return false
@@ -472,7 +459,7 @@ var _ = framework.BuildSuiteDescribe("Build service E2E tests", Label("build", "
 				timeout := time.Second * 1800
 				interval := time.Second * 10
 				Eventually(func() bool {
-					pipelineRun, err := f.AsKubeAdmin.HasController.GetComponentPipelineRun(componentNames[i], applicationName, testNamespace, false, "")
+					pipelineRun, err := f.AsKubeAdmin.HasController.GetComponentPipelineRun(componentNames[i], applicationName, testNamespace, "")
 					Expect(err).ShouldNot(HaveOccurred())
 
 					for _, condition := range pipelineRun.Status.Conditions {
@@ -483,12 +470,7 @@ var _ = framework.BuildSuiteDescribe("Build service E2E tests", Label("build", "
 						}
 
 						if !pipelineRun.GetStatusCondition().GetCondition(apis.ConditionSucceeded).IsTrue() {
-							failMessage := fmt.Sprintf("Pipelinerun '%s' didn't succeed\n", pipelineRun.Name)
-							d := utils.GetFailedPipelineRunDetails(pipelineRun)
-							if d.FailedContainerName != "" {
-								logs, _ := f.AsKubeAdmin.CommonController.GetContainerLogs(d.PodName, d.FailedContainerName, testNamespace)
-								failMessage += fmt.Sprintf("Logs from failed container '%s': \n%s", d.FailedContainerName, logs)
-							}
+							failMessage := tekton.GetFailedPipelineRunLogs(f.AsKubeAdmin.CommonController, pipelineRun)
 							Fail(failMessage)
 						}
 					}
@@ -505,7 +487,7 @@ var _ = framework.BuildSuiteDescribe("Build service E2E tests", Label("build", "
 				if strings.Contains(s.LabelFilter, buildTemplatesKcpTestLabel) {
 					gatherResult = append(gatherResult, "sbom-json-check")
 				}
-				pipelineRun, err := f.AsKubeAdmin.HasController.GetComponentPipelineRun(componentNames[0], applicationName, testNamespace, false, "")
+				pipelineRun, err := f.AsKubeAdmin.HasController.GetComponentPipelineRun(componentNames[0], applicationName, testNamespace, "")
 				Expect(err).ShouldNot(HaveOccurred())
 
 				for i := range gatherResult {
@@ -535,7 +517,7 @@ var _ = framework.BuildSuiteDescribe("Build service E2E tests", Label("build", "
 
 			When("the container image is created and pushed to container registry", Label("sbom", "slow"), func() {
 				It("contains non-empty sbom files", func() {
-					pipelineRun, err := f.AsKubeAdmin.HasController.GetComponentPipelineRun(componentNames[0], applicationName, testNamespace, false, "")
+					pipelineRun, err := f.AsKubeAdmin.HasController.GetComponentPipelineRun(componentNames[0], applicationName, testNamespace, "")
 					Expect(err).ShouldNot(HaveOccurred())
 
 					var outputImage string
@@ -615,7 +597,7 @@ var _ = framework.BuildSuiteDescribe("Build service E2E tests", Label("build", "
 
 		It("should not trigger a PipelineRun", func() {
 			Consistently(func() bool {
-				_, err := f.AsKubeAdmin.HasController.GetComponentPipelineRun(componentName, applicationName, testNamespace, false, "")
+				_, err := f.AsKubeAdmin.HasController.GetComponentPipelineRun(componentName, applicationName, testNamespace, "")
 				Expect(err).NotTo(BeNil())
 				return strings.Contains(err.Error(), "no pipelinerun found")
 			}, timeout, interval).Should(BeTrue(), fmt.Sprintf("expected no PipelineRun to be triggered for the component %s in %s namespace", componentName, testNamespace))
@@ -693,7 +675,7 @@ var _ = framework.BuildSuiteDescribe("Build service E2E tests", Label("build", "
 			Expect(err).ShouldNot(HaveOccurred())
 
 			Eventually(func() bool {
-				pipelineRun, err := f.AsKubeAdmin.HasController.GetComponentPipelineRun(componentName, applicationName, testNamespace, false, "")
+				pipelineRun, err := f.AsKubeAdmin.HasController.GetComponentPipelineRun(componentName, applicationName, testNamespace, "")
 				if err != nil {
 					GinkgoWriter.Println("PipelineRun has not been created yet")
 					return false
@@ -701,7 +683,7 @@ var _ = framework.BuildSuiteDescribe("Build service E2E tests", Label("build", "
 				return pipelineRun.HasStarted()
 			}, timeout, interval).Should(BeTrue(), "timed out when waiting for the PipelineRun to start")
 
-			pipelineRun, err := f.AsKubeAdmin.HasController.GetComponentPipelineRun(componentName, applicationName, testNamespace, false, "")
+			pipelineRun, err := f.AsKubeAdmin.HasController.GetComponentPipelineRun(componentName, applicationName, testNamespace, "")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(pipelineRun.Spec.PipelineRef.Bundle).To(Equal(dummyPipelineBundleRef))
 			Expect(pipelineRun.Spec.Params).To(ContainElement(v1beta1.Param{
@@ -715,7 +697,7 @@ var _ = framework.BuildSuiteDescribe("Build service E2E tests", Label("build", "
 			_, err = f.AsKubeAdmin.HasController.CreateComponent(applicationName, notMatchingComponentName, testNamespace, helloWorldComponentGitSourceURL, "", "", outputContainerImage, "", true)
 			Expect(err).ShouldNot(HaveOccurred())
 			Eventually(func() bool {
-				pipelineRun, err := f.AsKubeAdmin.HasController.GetComponentPipelineRun(notMatchingComponentName, applicationName, testNamespace, false, "")
+				pipelineRun, err := f.AsKubeAdmin.HasController.GetComponentPipelineRun(notMatchingComponentName, applicationName, testNamespace, "")
 				if err != nil {
 					GinkgoWriter.Println("PipelineRun has not been created yet")
 					return false
@@ -723,7 +705,7 @@ var _ = framework.BuildSuiteDescribe("Build service E2E tests", Label("build", "
 				return pipelineRun.HasStarted()
 			}, timeout, interval).Should(BeTrue(), "timed out when waiting for the PipelineRun to start")
 
-			pipelineRun, err := f.AsKubeAdmin.HasController.GetComponentPipelineRun(notMatchingComponentName, applicationName, testNamespace, false, "")
+			pipelineRun, err := f.AsKubeAdmin.HasController.GetComponentPipelineRun(notMatchingComponentName, applicationName, testNamespace, "")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(pipelineRun.Spec.PipelineRef.Bundle).ToNot(Equal(dummyPipelineBundleRef))
 			Expect(pipelineRun.Spec.Params).ToNot(ContainElement(v1beta1.Param{
@@ -790,7 +772,7 @@ var _ = framework.BuildSuiteDescribe("Build service E2E tests", Label("build", "
 
 		It("should override the shared secret", func() {
 			Eventually(func() bool {
-				pipelineRun, err := f.AsKubeAdmin.HasController.GetComponentPipelineRun(componentName, applicationName, testNamespace, false, "")
+				pipelineRun, err := f.AsKubeAdmin.HasController.GetComponentPipelineRun(componentName, applicationName, testNamespace, "")
 				if err != nil {
 					GinkgoWriter.Println("PipelineRun has not been created yet")
 					return false
@@ -798,7 +780,7 @@ var _ = framework.BuildSuiteDescribe("Build service E2E tests", Label("build", "
 				return pipelineRun.HasStarted()
 			}, timeout, interval).Should(BeTrue(), "timed out when waiting for the PipelineRun to start")
 
-			pipelineRun, err := f.AsKubeAdmin.HasController.GetComponentPipelineRun(componentName, applicationName, testNamespace, false, "")
+			pipelineRun, err := f.AsKubeAdmin.HasController.GetComponentPipelineRun(componentName, applicationName, testNamespace, "")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(pipelineRun.Spec.Workspaces).To(HaveLen(1))
 		})
@@ -807,7 +789,7 @@ var _ = framework.BuildSuiteDescribe("Build service E2E tests", Label("build", "
 			timeout = time.Minute * 30
 			interval = time.Second * 5
 			Eventually(func() bool {
-				pipelineRun, err := f.AsKubeAdmin.HasController.GetComponentPipelineRun(componentName, applicationName, testNamespace, false, "")
+				pipelineRun, err := f.AsKubeAdmin.HasController.GetComponentPipelineRun(componentName, applicationName, testNamespace, "")
 				Expect(err).ShouldNot(HaveOccurred())
 
 				for _, condition := range pipelineRun.Status.Conditions {

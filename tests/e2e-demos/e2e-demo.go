@@ -189,7 +189,7 @@ var _ = framework.E2ESuiteDescribe(Label("e2e-demo"), func() {
 
 					// If we are attempting more than 1 time lets retrigger the pipelinerun
 					if CurrentSpecReport().NumAttempts > 1 {
-						pipelineRun, err := fw.AsKubeDeveloper.HasController.GetComponentPipelineRun(component.Name, application.Name, namespace, false, "")
+						pipelineRun, err := fw.AsKubeDeveloper.HasController.GetComponentPipelineRun(component.Name, application.Name, namespace, "")
 						Expect(err).ShouldNot(HaveOccurred(), "failed to get pipelinerun: %v", err)
 
 						err = fw.AsKubeAdmin.TektonController.DeletePipelineRun(pipelineRun.Name, namespace)
@@ -200,7 +200,10 @@ var _ = framework.E2ESuiteDescribe(Label("e2e-demo"), func() {
 						Expect(err).ShouldNot(HaveOccurred(), "failed to update component to trigger another pipeline build: %v", err)
 					}
 
-					Expect(fw.AsKubeDeveloper.HasController.WaitForComponentPipelineToBeFinished(component.Name, application.Name, namespace)).To(Succeed(), "Failed component pipeline %v", err)
+					err := fw.AsKubeDeveloper.HasController.WaitForComponentPipelineToBeFinished(fw.AsKubeAdmin.CommonController, component.Name, application.Name, namespace, "")
+					if err != nil {
+						Fail(fmt.Sprint(err))
+					}
 				})
 
 				It("finds the snapshot and checks if it is marked as successful", func() {
