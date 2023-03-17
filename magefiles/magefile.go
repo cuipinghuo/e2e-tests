@@ -133,7 +133,8 @@ func (Local) CleanupGithubOrg() error {
 	}
 
 	// Get all repos
-	ghClient := github.NewGithubClient(githubToken, "redhat-appstudio-qe")
+	githubOrgName := utils.GetEnv(constants.GITHUB_E2E_ORGANIZATION_ENV, "redhat-appstudio-qe")
+	ghClient := github.NewGithubClient(githubToken, githubOrgName)
 	repos, err := ghClient.GetAllRepositories()
 	if err != nil {
 		return err
@@ -260,6 +261,10 @@ func (ci CI) setRequiredEnvVars() error {
 				envVarPrefix = "RELEASE_SERVICE"
 				imageTagSuffix = "release-service-image"
 				testSuiteLabel = "release"
+			case strings.Contains(jobName, "integration-service"):
+				envVarPrefix = "INTEGRATION_SERVICE"
+				imageTagSuffix = "integration-service-image"
+				testSuiteLabel = "integration-service"
 			case strings.Contains(jobName, "jvm-build-service"):
 				envVarPrefix = "JVM_BUILD_SERVICE"
 				imageTagSuffix = "jvm-build-service-image"

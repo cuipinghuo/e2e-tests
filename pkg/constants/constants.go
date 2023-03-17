@@ -78,10 +78,14 @@ const (
 	BuildPipelineSelectorYamlURL = "https://raw.githubusercontent.com/redhat-appstudio/infra-deployments/main/components/build-service/base/build-pipeline-selector.yaml"
 
 	DefaultImagePushRepo = "quay.io/redhat-appstudio-qe/test-images"
+
+	BuildTaskRunName = "build-container"
+
+	ComponentInitialBuildAnnotationKey = "appstudio.openshift.io/component-initial-build"
 )
 
 var (
 	ComponentDefaultLabel         = map[string]string{"e2e-test": "true"}
-	ComponentDefaultAnnotation    = map[string]string{"appstudio.openshift.io/component-initial-build": "processed"}
+	ComponentDefaultAnnotation    = map[string]string{ComponentInitialBuildAnnotationKey: "processed"}
 	ComponentPaCRequestAnnotation = map[string]string{"appstudio.openshift.io/pac-provision": "request"}
 )
