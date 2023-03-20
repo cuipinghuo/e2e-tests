@@ -21,7 +21,7 @@ spec:
   - name: git-url
     value: '{{repo_url}}'
   - name: output-image
-    value: quay.io/redhat-appstudio/user-workload:{{revision}}
+    value: quay.io/cuipinghuo/user-workload:{{revision}}
   - name: path-context
     value: .
   - name: revision
