@@ -62,6 +62,18 @@ require (
 	oras.land/oras-go/v2 v2.3.0
 	sigs.k8s.io/controller-runtime v0.17.5
 	sigs.k8s.io/yaml v1.4.0
+
+	//testing for ec disallowed packages
+	github.com/hashicorp/terraform v1.6.0
+	// github.com/hashicorp/consul v1.17.0
+	// github.com/hashicorp/vault v1.15.0
+	// //github.com/hashicorp/vagrant v2.3.7 
+	// github.com/hashicorp/nomad v1.6.2 
+	// github.com/hashicorp/packer v1.9.4
+	// github.com/hashicorp/waypoint v0.11.4
+	// github.com/hashicorp/boundary v0.13.1
+	// github.com/hashicorp/vault-csi-provider v1.4.0
+	// github.com/hashicorp/vault-secrets-operator v0.2.0
 )
 
 replace (
